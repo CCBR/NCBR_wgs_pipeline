@@ -36,13 +36,10 @@ seqfile = ".bam"
 ##
 ## Read in the masterkey file 
 ##
-#print(listdir(os.getcwd()))
+
 df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
 dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
-#dict_CIDR = df['Names'].tolist()
 print(dict_CIDR)
-#exit
 
 configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg38.json"
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
@@ -50,6 +47,7 @@ chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10"
 ##
 ## Set rule all
 ##
+
 rule all:
     input:
         recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
