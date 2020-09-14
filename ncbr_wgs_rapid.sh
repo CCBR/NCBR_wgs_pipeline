@@ -114,17 +114,17 @@ CLUSTER_OPTS="sbatch --gres {cluster.gres} --qos=cv19 --cpus-per-task {cluster.t
 #CLUSTER_OPTS_HIMEM="qsub -e snakejobs_himem -o snakejobs_himem -pe threaded 8 -l himem -l h_vmem=32G -l virtual_free=32G -wd $batchdir"
 if [ "$2" == "align" ]
 then
-    RUNFILE="covid_wgs_rapid_$4_align.snakemake"
+    RUNFILE="ncbr_wgs_rapid_$4_align.snakemake"
 fi
 
 if [ "$2" == "varcall" ]
 then
-    RUNFILE="covid_wgs_rapid_$4_varcall.snakemake"
+    RUNFILE="ncbr_wgs_rapid_$4_varcall.snakemake"
 fi
 
 if [ "$2" == "qc" ]
 then
-    RUNFILE="covid_wgs_rapid_$4_qc.snakemake"
+    RUNFILE="ncbr_wgs_rapid_$4_qc.snakemake"
 fi
 
 if [ "$3" == "npr" ]
@@ -134,6 +134,6 @@ fi
 
 if [ "$3" == "process" ]
 then
-    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 500 --cluster "$CLUSTER_OPTS" --cluster-config NCBR_wgs_pipeline/covid_wgs_cluster.json --keep-going --snakefile ${DIR}/"$RUNFILE" > wgs_batch_processing.log 2>&1 &
+    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 500 --cluster "$CLUSTER_OPTS" --cluster-config NCBR_wgs_pipeline/ncbr_wgs_cluster.json --keep-going --snakefile ${DIR}/"$RUNFILE" > wgs_batch_processing.log 2>&1 &
     #snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 100  --cluster "$CLUSTER_OPTS" --cluster-config ${DIR}/cluster.json --keep-going --snakefile ${DIR}/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
 fi
