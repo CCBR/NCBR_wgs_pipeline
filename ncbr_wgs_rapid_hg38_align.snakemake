@@ -164,7 +164,7 @@ rule apply_recal:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
               re=temp("BAM/{newID}_recal_data.grp")
-      output: bam=temp("BAM/{newID}.recal.bam"),
+      output: bam=temp("BAM/{newID}.final.bam"),
       params: genome=config['references']['GENOME'],rname="apply_recal"
       shell:  """
               module load GATK/4.1.6.0
