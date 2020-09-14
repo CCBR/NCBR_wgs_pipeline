@@ -73,7 +73,6 @@ print(dict_CIDR)
 
 configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg38.json"
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
-lanes = ["L001","L002","L003","L004"]
 
 ##
 ## Set rule all
@@ -82,14 +81,26 @@ rule all:
     input:
         recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
 
+rule bam2fastq:
+    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
+    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+            orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
+    params: rname="bam2fastq"
+    shell: """
+           module load GATK/4.1.8.1
+           mkdir -p fastqs
+           gatk SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} --TMP_DIR /lscratch/$SLURM_JOBID -R /data/GRIS_NCBR/resources/human_g1k_v37_decoy.fasta
+           """
+
 rule trimmomatic:
-    input:  r1 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R1_001.fastq.gz")],
-            r2 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R2_001.fastq.gz")],
-    output: one=temp("fastqs/{newID}_{lanes}.R1.trimmed.fastq.gz"),
-            two=temp("fastqs/{newID}_{lanes}.R1.trimmed.unpair.fastq.gz"),
-            three=temp("fastqs/{newID}_{lanes}.R2.trimmed.fastq.gz"),
-            four=temp("fastqs/{newID}_{lanes}.R2.trimmed.unpair.fastq.gz"),
-            err="fastqs/{newID}_{lanes}_run_trimmomatic.err"
+    input:  r1=temp("fastqs/{newID}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
+            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
+            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
+            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
+            err="fastqs/{newID}_run_trimmomatic.err"
     params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
     shell:  """
             module load trimmomatic/0.39
@@ -97,8 +108,8 @@ rule trimmomatic:
             """
 
 rule bwa_mem:
-    input:  "fastqs/{newID}_{lanes}.R1.trimmed.fastq.gz","fastqs/{newID}_{lanes}.R2.trimmed.fastq.gz"
-    output: temp("BAM/{newID}_{lanes}.bam")
+    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
+    output: temp("BAM/{newID}.bam")
     params: genome=config['references']['GENOME'],rname="pl:bwamem",sample = "{newID}"
     threads: 24
     shell:  """
@@ -109,8 +120,8 @@ rule bwa_mem:
             """
 
 rule index:
-      input:  bam="BAM/{newID}_{lanes}.bam"
-      output: bai=temp("BAM/{newID}_{lanes}.bai"),
+      input:  bam="BAM/{newID}.bam"
+      output: bai=temp("BAM/{newID}.bai"),
       params: rname="index"
       shell:  """
               module load samtools
