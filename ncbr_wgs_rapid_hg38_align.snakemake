@@ -53,7 +53,7 @@ rule all:
         recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
 
 rule bam2fastq:
-    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
+    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + seqfile)],
     output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
             r2=temp("fastqs/{newID}.R2.fastq.gz"),
             orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
@@ -65,8 +65,8 @@ rule bam2fastq:
            """
 
 rule trimmomatic:
-    input:  r1=temp("fastqs/{newID}.R1.fastq.gz"),
-            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+    input:  r1="fastqs/{newID}.R1.fastq.gz",
+            r2="fastqs/{newID}.R2.fastq.gz",
     output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
             two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
             three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
