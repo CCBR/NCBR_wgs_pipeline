@@ -241,8 +241,8 @@ rule vcf:
     input: 
         vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output:
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
-        gtfix_vcf = "VCF/COVID_WGS_" + batch_name + ".GTfix.vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
+        gtfix_vcf = "VCF/WGS_" + batch_name + ".GTfix.vcf.gz",
     params:
         rname = "VCF_rename",genome = config['references']['GENOME']
     shell:
