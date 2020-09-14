@@ -17,7 +17,7 @@ echo "Running script from ${DIR}"
 ##
 ## Test commandline arguments
 ##
-if [ $# -ne 3 ]; then
+if [ $# -ne 4 ]; then
     echo " " 
     echo "Requires a raw data directory, processing type: align, varcall, or qc and run argument: gris, npr, or process"
     echo " " 
