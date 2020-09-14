@@ -30,66 +30,40 @@ import datetime
 dir_renamed = os.getcwd()
 dir_rawdata = join(dir_renamed, "rawdata")
 dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
-batch_number = re.sub("^.*batch","",dir_renamed)
-batch_name = "batch" + batch_number
-#if int(batch_number) < 10:
-#    batch_name0 = "BATCH0" + batch_number
-#else:
-#    batch_name0 = "BATCH" + batch_number
 
-#dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
-#VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
-#VCF = join(dir_rawvcf, VCF)
-#fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
-
-## Check if these are bams or crams
-#if os.path.isdir(os.path.join(dir_rawdata, "CRAM")):
-#    seqdir = "CRAM"
-#    seqfile = ".cram"
-#elif os.path.isdir(os.path.join(dir_rawdata, "BAM")):
-#    seqdir = "BAM"
 seqfile = ".bam"
-#else:
-#    print("Unable to locate input rawdata BAM or CRAM folder.  Quitting.")
-#    sys.exit()
 
+cumulative_gvcf_dir = "/eric/fill/this/in"
 
 ## Set variables for rerunning all of the old pedigrees
-last_batch = str(int(batch_number) - 1)
-#dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_updated"
-#dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
-todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 
 ##
 ## Read in the masterkey file 
 ##
-#print(listdir(os.getcwd()))
 df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
 dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
-#dict_CIDR = df['Names'].tolist()
 print(dict_CIDR)
-#exit
 
-configfile:"NCBR_wgs_pipeline/ncbr_wgs_references.json"
+batch_number = re.sub("^.*batch","",dir_renamed)
+batch_name = "batch" + batch_number
+
+configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg19.json"
 chroms = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X","Y","MT"]
 chunks = ['1:1-30000001','1:30000001-60000001','1:60000001-90000001','1:90000001-120000001','1:120000001-150000001','1:150000001-180000001','1:180000001-210000001','1:210000001-240000001','1:240000001-249250621','2:1-30000001','2:30000001-60000001','2:60000001-90000001','2:90000001-120000001','2:120000001-150000001','2:150000001-180000001','2:180000001-210000001','2:210000001-240000001','2:240000001-243199373','3:1-30000001','3:30000001-60000001','3:60000001-90000001','3:90000001-120000001','3:120000001-150000001','3:150000001-180000001','3:180000001-198022430','4:1-30000001','4:30000001-60000001','4:60000001-90000001','4:90000001-120000001','4:120000001-150000001','4:150000001-180000001','4:180000001-191154276','5:1-30000001','5:30000001-60000001','5:60000001-90000001','5:90000001-120000001','5:120000001-150000001','5:150000001-180000001','5:180000001-180915260','6:1-30000001','6:30000001-60000001','6:60000001-90000001','6:90000001-120000001','6:120000001-150000001','6:150000001-171115067','7:1-30000001','7:30000001-60000001','7:60000001-90000001','7:90000001-120000001','7:120000001-150000001','7:150000001-159138663','8:1-30000001','8:30000001-60000001','8:60000001-90000001','8:90000001-120000001','8:120000001-146364022','9:1-30000001','9:30000001-60000001','9:60000001-90000001','9:90000001-120000001','9:120000001-141213431','10:1-30000001','10:30000001-60000001','10:60000001-90000001','10:90000001-120000001','10:120000001-135534747','11:1-30000001','11:30000001-60000001','11:60000001-90000001','11:90000001-120000001','11:120000001-135006516','12:1-30000001','12:30000001-60000001','12:60000001-90000001','12:90000001-120000001','12:120000001-133851895','13:1-30000001','13:30000001-60000001','13:60000001-90000001','13:90000001-115169878','14:1-30000001','14:30000001-60000001','14:60000001-90000001','14:90000001-107349540','15:1-30000001','15:30000001-60000001','15:60000001-90000001','15:90000001-102531392','16:1-30000001','16:30000001-60000001','16:60000001-90000001','16:90000001-90354753','17:1-30000001','17:30000001-60000001','17:60000001-81195210','18:1-30000001','18:30000001-60000001','18:60000001-78077248','19:1-30000001','19:30000001-59128983','20:1-30000001','20:30000001-60000001','20:60000001-63025520','21:1-30000001','21:30000001-48129895','22:1-30000001','22:30000001-51304566','X:1-30000001','X:30000001-60000001','X:60000001-90000001','X:90000001-120000001','X:120000001-150000001','X:150000001-155270560','Y:1-30000001','Y:30000001-59373566','MT:1-16569']
-lanes = ["L001","L002","L003","L004"]
 
 ##
 ## Set rule all
 ##
 rule all:
     input:
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
         hla = expand(join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"), newID=list(dict_CIDR.keys())),
         table = expand(join(dir_renamed, "HLA/{newID}_hla.xlsx"), newID=list(dict_CIDR.keys())),
         final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
-#        gvcfs=expand("gVCFs/{newID}.{chunks}.g.vcf.gz", newID=list(dict_CIDR.keys()), chunks=chunks),
 
 rule haplotypecaller:
     input: 
-        bam="BAM/{newID}.recal.bam",
+        bam="BAM/{newID}.final.bam",
     output:
         gzvcf = temp("gVCFs/{newID}.{chunks}.g.vcf.gz"),
         index = temp("gVCFs/{newID}.{chunks}.g.vcf.gz.tbi"),
@@ -115,27 +89,47 @@ rule listgvcfs:
         ls gVCFs/*.{params.chunk}.g.vcf.gz > {output.list}
         """
 
-rule mergegvcfs:
-    input: list = "gVCFs/gVCFs.{chunks}.list",
-           gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
-           index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
-           prev = "/data/GRIS_NCBR/COVID_WGS/hg19_gvcfs/cumulative/through_batch" + last_batch + "_{chunks}.g.vcf.gz"
-    output:
-        gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg19_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-        index = "/data/GRIS_NCBR/COVID_WGS/hg19_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
-    params: 
-        rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
-    shell:
-        """
-        module load GATK/4.1.4.1
-        mkdir -p gVCFs/merged
-        gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
-        """
+if batch_number == "1":
+
+  rule mergegvcfs:
+      input: list = "gVCFs/gVCFs.{chunks}.list",
+             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
+             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
+      output:
+          gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+          index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
+      params: 
+          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
+      shell:
+          """
+          module load GATK/4.1.4.1
+          mkdir -p gVCFs/merged
+          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+          """
+
+else:
+
+  rule mergegvcfs:
+      input: list = "gVCFs/gVCFs.{chunks}.list",
+             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
+             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
+             prev = join(cumulative_gvcf_dir, "through_batch" + last_batch + "_{chunks}.g.vcf.gz")
+      output:
+          gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+          index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
+      params: 
+          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
+      shell:
+          """
+          module load GATK/4.1.4.1
+          mkdir -p gVCFs/merged
+          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+          """
 
 rule genotype:
     input: 
-        gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg19_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-        index = "/data/GRIS_NCBR/COVID_WGS/hg19_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
+        gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+        index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
     output:
         vcf = "VCF/by_chunk/raw_variants_{chunks}.vcf.gz",
     params:
