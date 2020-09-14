@@ -30,46 +30,23 @@ import datetime
 dir_renamed = os.getcwd()
 dir_rawdata = join(dir_renamed, "rawdata")
 dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
-batch_number = re.sub("^.*batch","",dir_renamed)
-batch_name = "batch" + batch_number
-#if int(batch_number) < 10:
-#    batch_name0 = "BATCH0" + batch_number
-#else:
-#    batch_name0 = "BATCH" + batch_number
 
-#dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
-#VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
-#VCF = join(dir_rawvcf, VCF)
-#fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
-
-## Check if these are bams or crams
-#if os.path.isdir(os.path.join(dir_rawdata, "CRAM")):
-#    seqdir = "CRAM"
-#    seqfile = ".cram"
-#elif os.path.isdir(os.path.join(dir_rawdata, "BAM")):
-#    seqdir = "BAM"
 seqfile = ".bam"
-#else:
-#    print("Unable to locate input rawdata BAM or CRAM folder.  Quitting.")
-#    sys.exit()
 
+cumulative_gvcf_dir = "eric/fill/this/in"
 
 ## Set variables for rerunning all of the old pedigrees
-last_batch = str(int(batch_number) - 1)
-#dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_updated"
-#dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
-todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 
 ##
 ## Read in the masterkey file 
 ##
-#print(listdir(os.getcwd()))
+
 df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
 dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
-#dict_CIDR = df['Names'].tolist()
 print(dict_CIDR)
-#exit
+
+batch_number = re.sub("^.*batch","",dir_renamed)
+batch_name = "batch" + batch_number
 
 configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg38.json"
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
@@ -81,27 +58,8 @@ lanes = ["L001","L002","L003","L004"]
 ##
 rule all:
     input:
-#        fastqc=expand(join("BATCH_QC/FastQC/{newID}.R1.trimmed_fastqc.html"),newID=list(dict_CIDR.keys())),
-#        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
-#        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
-#        vcftools = join("BATCH_QC/", batch_name + ".het"),
-#        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
-#        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
-#        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
-#        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
-#        multiqc=join("BATCH_QC/QC_Report.html"),
-#        recalbam = expand("BAM/{newID}.recal.bam",newID=list(dict_CIDR.keys())),
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
-#        hla = expand(join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"), newID=list(dict_CIDR.keys())),
-#        table = expand(join(dir_renamed, "HLA/{newID}_hla.xlsx"), newID=list(dict_CIDR.keys())),
-#        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
-#        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
-#        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
-#        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
-#        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
         final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
-#        svvcf="smoove_out/merged.sites.vcf.gz",
-#        svfinal="smoove_out/batch.smoove.square.vcf.gz",
 
 rule haplotypecaller:
     input: 
@@ -131,27 +89,47 @@ rule listgvcfs:
         ls gVCFs/*.{params.chunk}.g.vcf.gz > {output.list}
         """
 
-rule mergegvcfs:
-    input: list = "gVCFs/gVCFs.{chunks}.list",
-           gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
-           index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
-           prev = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + last_batch + "_{chunks}.g.vcf.gz"
-    output:
-        gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-        index = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
-    params: 
-        rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
-    shell:
-        """
-        module load GATK/4.1.4.1
-        mkdir -p gVCFs/merged
-        gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
-        """
+if batch_number == "1":
+
+  rule mergegvcfs:
+      input: list = "gVCFs/gVCFs.{chunks}.list",
+             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
+             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
+      output:
+          gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+          index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
+      params: 
+          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
+      shell:
+          """
+          module load GATK/4.1.4.1
+          mkdir -p gVCFs/merged
+          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+          """
+
+else:
+
+  rule mergegvcfs:
+      input: list = "gVCFs/gVCFs.{chunks}.list",
+             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
+             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
+             prev = join(cumulative_gvcf_dir, "through_batch" + last_batch + "_{chunks}.g.vcf.gz")
+      output:
+          gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+          index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
+      params: 
+          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
+      shell:
+          """
+          module load GATK/4.1.4.1
+          mkdir -p gVCFs/merged
+          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+          """
 
 rule genotype:
     input: 
-        gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-        index = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
+        gzvcf = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz"),
+        index = join(cumulative_gvcf_dir, "through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi"),
     output:
         vcf = "VCF/by_chunk/raw_variants_{chunks}.vcf.gz",
     params:
@@ -263,8 +241,8 @@ rule vcf:
     input: 
         vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output:
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
-        gtfix_vcf = "VCF/COVID_WGS_" + batch_name + ".GTfix.vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
+        gtfix_vcf = "VCF/WGS_" + batch_name + ".GTfix.vcf.gz",
     params:
         rname = "VCF_rename",genome = config['references']['GENOME']
     shell:
