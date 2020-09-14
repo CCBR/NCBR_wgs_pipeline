@@ -260,7 +260,7 @@ rule vcf:
 ##
 rule hla:
     input: 
-        bam="BAM/{newID}.recal.bam",
+        bam="BAM/{newID}.final.bam",
     output: 
         hla = join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"),
     params: 
