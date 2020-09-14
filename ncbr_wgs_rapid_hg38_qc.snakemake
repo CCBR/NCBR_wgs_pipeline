@@ -29,23 +29,20 @@ import datetime
 ##
 dir_renamed = os.getcwd()
 dir_rawdata = join(dir_renamed, "rawdata")
+dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
 
 seqfile = ".bam"
 
 ##
 ## Read in the masterkey file 
 ##
-#print(listdir(os.getcwd()))
+
 df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
 dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
-#dict_CIDR = df['Names'].tolist()
 print(dict_CIDR)
-#exit
 
 configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg38.json"
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
-lanes = ["L001","L002","L003","L004"]
 
 ##
 ## Set rule all
@@ -61,81 +58,48 @@ rule all:
         snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
         bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
         multiqc=join("BATCH_QC/QC_Report.html"),
-#        recalbam = expand("BAM/{newID}.recal.bam",newID=list(dict_CIDR.keys())),
-#        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
-#        hla = expand(join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"),newID=list(dict_CIDR.keys())),
-#        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
-#        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
         admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
         plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
         plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
-#        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
-#        svvcf="smoove_out/merged.sites.vcf.gz",
-#        svfinal="smoove_out/batch.smoove.square.vcf.gz",
-
-rule trimmomatic:
-    input:  r1 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R1_001.fastq.gz")],
-            r2 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R2_001.fastq.gz")],
-    output: one=temp("fastqs/{newID}_{lanes}.R1.trimmed.fastq.gz"),
-            two=temp("fastqs/{newID}_{lanes}.R1.trimmed.unpair.fastq.gz"),
-            three=temp("fastqs/{newID}_{lanes}.R2.trimmed.fastq.gz"),
-            four=temp("fastqs/{newID}_{lanes}.R2.trimmed.unpair.fastq.gz"),
-            err="fastqs/{newID}_{lanes}_run_trimmomatic.err"
-    params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
-    shell:  """
-            module load trimmomatic/0.39
-            trimmomatic PE -threads 24 -phred33 {input[0]} {input[1]} {output.one} {output.two} {output.three} {output.four} ILLUMINACLIP:{params.adapterfile}:3:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:20 MINLEN:20 2> {output.err}
-            """
-
-rule merge_reads:
-    input:  r1=expand("fastqs/{{newID}}_{lanes}.R1.trimmed.fastq.gz", lanes=lanes),
-            r2=expand("fastqs/{{newID}}_{lanes}.R2.trimmed.fastq.gz", lanes=lanes),
-    output: r1=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
-            r2=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
-    params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
-    shell:  """
-            cat {input.r1} > {output.r1}
-            cat {input.r2} > {output.r2}
-            """
 
 rule fastqc_trimmed:
-    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
-    output: "BATCH_QC/FastQC/{newID}.R1.trimmed_fastqc.html","BATCH_QC/FastQC/{newID}.R2.trimmed_fastqc.html"
+    input:  "BAM/{newID}.final.bam"
+    output: "BATCH_QC/FastQC/{newID}.final_fastqc.html"
     params: adapters=config['references']['fastqc_adapters'],rname="pl:fastqc"
     threads: 4
     shell: """
            mkdir -p BATCH_QC/FastQC
            module load fastqc
-           fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} --contaminants {params.adapters} {input}
+           fastqc -o BATCH_QC/FastQC -f bam --threads {threads} --contaminants {params.adapters} {input}
            """
 
 rule qualimap:
-    input: "BAM/{newID}.recal.bam",
+    input: "BAM/{newID}.final.bam",
     output: txt = join("BATCH_QC/{newID}","genome_results.txt"), html = join("BATCH_QC/{newID}", "qualimapReport.html")
     threads: 16
     params: dir = "BATCH_QC/{newID}", rname="qualimap"
     shell: "module load qualimap;unset DISPLAY; qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC"
 
 rule samtools_flagstats:
-    input:bam= "BAM/{newID}.recal.bam",
+    input:bam= "BAM/{newID}.final.bam",
     output:join("BATCH_QC/Flagstats/{newID}.flagstats")
     params: rname="flagstats"
     shell: "module load samtools; samtools flagstat {input} > {output}"
 
 rule vcftools:
-    input: vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+    input: vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
     output: join("BATCH_QC/", batch_name + ".het"),
     params: batch=batch_name,rname="vcftools"
     shell: "module load vcftools/0.1.16; vcftools --gzvcf {input.vcf} --het --out BATCH_QC/{params.batch}"
 
 rule collectvariantcallmetrics:
-    input: vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+    input: vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
     output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
     params: vcf=config['references']['DBSNP'],batch=batch_name,rname="varcallmetrics"
     shell: "module load picard/2.20.8; java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectVariantCallingMetrics INPUT={input.vcf} OUTPUT=BATCH_QC/{params.batch} DBSNP={params.vcf} Validation_Stringency=SILENT"
 
 rule Gatk_SelectVariants:
-	input: vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+	input: vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
 	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
 	params: genome=config['references']['GENOME'], Sname = "{newID}", rname="varselect"
 	shell:"module load GATK/3.8-1; GATK -m 12g SelectVariants -R {params.genome} -o {output} -V {input.vcf} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
@@ -186,7 +150,7 @@ rule multiqc:
 ###
 rule admixture:
     input: 
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
     output: 
         filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
         mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
@@ -231,7 +195,7 @@ rule admixplot:
 ###
 rule inbreeding:
     input: 
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
     output: 
         knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf.gz")),
         plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
@@ -263,7 +227,7 @@ rule inbreeding:
 
 rule peddy:
     input:
-        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
+        vcf = "VCF/WGS_" + batch_name + ".vcf.gz",
         vcfall = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output:
         html = "VCF/" + batch_name + "_peddy.html",
