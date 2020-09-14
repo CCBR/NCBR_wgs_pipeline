@@ -163,10 +163,10 @@ rule gather_bqsr:
 rule apply_recal:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-              re=temp("BAM/{newID}_recal_data.grp")
-      output: bam=temp("BAM/{newID}.final.bam"),
+              re="BAM/{newID}_recal_data.grp",
+      output: bam="BAM/{newID}.final.bam",
       params: genome=config['references']['GENOME'],rname="apply_recal"
       shell:  """
               module load GATK/4.1.6.0
-              gatk --java-options '-Xmx48g' ApplyBQSR --reference {params.genome} --input {input.bam} --bqsr-recal-file {output.re} --output {output.bam} --use-jdk-inflater --use-jdk-deflater
+              gatk --java-options '-Xmx48g' ApplyBQSR --reference {params.genome} --input {input.bam} --bqsr-recal-file {input.re} --output {output.bam} --use-jdk-inflater --use-jdk-deflater
               """
