@@ -30,48 +30,18 @@ import datetime
 dir_renamed = os.getcwd()
 dir_rawdata = join(dir_renamed, "rawdata")
 dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
-batch_number = re.sub("^.*batch","",dir_renamed)
-batch_name = "batch" + batch_number
-#if int(batch_number) < 10:
-#    batch_name0 = "BATCH0" + batch_number
-#else:
-#    batch_name0 = "BATCH" + batch_number
 
-#dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
-#VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
-#VCF = join(dir_rawvcf, VCF)
-#fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
-
-## Check if these are bams or crams
-#if os.path.isdir(os.path.join(dir_rawdata, "CRAM")):
-#    seqdir = "CRAM"
-#    seqfile = ".cram"
-#elif os.path.isdir(os.path.join(dir_rawdata, "BAM")):
-#    seqdir = "BAM"
 seqfile = ".bam"
-#else:
-#    print("Unable to locate input rawdata BAM or CRAM folder.  Quitting.")
-#    sys.exit()
-
-
-## Set variables for rerunning all of the old pedigrees
-last_batch = str(int(batch_number) - 1)
-#dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_updated"
-#dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
-todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 
 ##
 ## Read in the masterkey file 
 ##
-#print(listdir(os.getcwd()))
-df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
-dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
-#dict_CIDR = df['Names'].tolist()
-print(dict_CIDR)
-#exit
 
-configfile:"NCBR_wgs_pipeline/ncbr_wgs_references.json"
+df = pd.read_csv("masterkey.txt", header=0, sep='\t')
+dict_CIDR = dict(zip(df['IDs'].tolist(), df['Names'].tolist()))
+print(dict_CIDR)
+
+configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg19.json"
 chroms = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X","Y","MT"]
 lanes = ["L001","L002","L003","L004"]
 
@@ -80,31 +50,32 @@ lanes = ["L001","L002","L003","L004"]
 ##
 rule all:
     input:
-        recalbam = expand("BAM/{newID}.recal.bam",newID=list(dict_CIDR.keys())),
+        recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
+
+rule bam2fastq:
+    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + seqfile)],
+    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+            orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
+    params: rname="bam2fastq"
+    shell: """
+           module load GATK/4.1.8.1
+           mkdir -p fastqs
+           gatk SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} --TMP_DIR /lscratch/$SLURM_JOBID -R /data/GRIS_NCBR/resources/human_g1k_v37_decoy.fasta
+           """
 
 rule trimmomatic:
-    input:  r1 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R1_001.fastq.gz")],
-            r2 = lambda w: [join("rawdata", dict_CIDR[w.newID] + "_{lanes}_R2_001.fastq.gz")],
-    output: one=temp("fastqs/{newID}_{lanes}.R1.trimmed.fastq.gz"),
-            two=temp("fastqs/{newID}_{lanes}.R1.trimmed.unpair.fastq.gz"),
-            three=temp("fastqs/{newID}_{lanes}.R2.trimmed.fastq.gz"),
-            four=temp("fastqs/{newID}_{lanes}.R2.trimmed.unpair.fastq.gz"),
-            err="fastqs/{newID}_{lanes}_run_trimmomatic.err"
+    input:  r1 = "fastqs/{newID}.R1.fastq.gz",
+            r2 = "fastqs/{newID}.R2.fastq.gz",
+    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
+            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
+            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
+            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
+            err="fastqs/{newID}_run_trimmomatic.err"
     params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
     shell:  """
             module load trimmomatic/0.39
             trimmomatic PE -threads 24 -phred33 {input[0]} {input[1]} {output.one} {output.two} {output.three} {output.four} ILLUMINACLIP:{params.adapterfile}:3:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:20 MINLEN:20 2> {output.err}
-            """
-
-rule merge_reads:
-    input:  r1=expand("fastqs/{{newID}}_{lanes}.R1.trimmed.fastq.gz", lanes=lanes),
-            r2=expand("fastqs/{{newID}}_{lanes}.R2.trimmed.fastq.gz", lanes=lanes),
-    output: r1=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
-            r2=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
-    params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
-    shell:  """
-            cat {input.r1} > {output.r1}
-            cat {input.r2} > {output.r2}
             """
 
 rule bwa_mem:
@@ -193,7 +164,7 @@ rule apply_recal:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
               re=temp("BAM/{newID}_recal_data.grp")
-      output: bam=temp("BAM/{newID}.recal.bam"),
+      output: bam=temp("BAM/{newID}.final.bam"),
       params: genome=config['references']['GENOME'],rname="apply_recal"
       shell:  """
               module load GATK/4.1.6.0
