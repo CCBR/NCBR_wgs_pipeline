@@ -40,7 +40,7 @@
       "merge_bams": {
               "threads": "24",
               "time": "12:00:00",
-              "mem": "48G",
+              "mem": "64G",
       },
       "merge_bam": {
               "threads": "16",
