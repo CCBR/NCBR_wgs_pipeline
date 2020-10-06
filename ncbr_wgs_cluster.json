@@ -61,6 +61,10 @@
               "threads": "24",
               "mem": "144G",
       },
+      "merge_unit_bams": {
+              "threads": "1",
+              "mem": "144G",
+      },
       "picard_headers": {
               "threads": "2",
               "time": "24:00:00",
