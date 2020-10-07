@@ -127,10 +127,10 @@ rule subset_bam_rg:
     input:
         get_start_bam
     output:
-        'rg_bam/{newID}_{unit}.bam'
+        "rg_bam/{newID}_{unit}.bam"
     params:
         rg = get_rg_param,
-        rname = subset_bam_rg
+        rname = "subset_bam_rg"
     shell:
         """
         module load samtools/1.11
