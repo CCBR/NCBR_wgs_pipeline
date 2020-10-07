@@ -40,7 +40,7 @@
       "merge_bams": {
               "threads": "24",
               "time": "12:00:00",
-              "mem": "48G",
+              "mem": "64G",
       },
       "merge_bam": {
               "threads": "16",
@@ -59,7 +59,11 @@
       },
       "bwa_mem": {
               "threads": "24",
-              "mem": "96G",
+              "mem": "144G",
+      },
+      "merge_unit_bams": {
+              "threads": "1",
+              "mem": "144G",
       },
       "picard_headers": {
               "threads": "2",

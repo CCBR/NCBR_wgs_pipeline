@@ -91,7 +91,7 @@ mkdir -p snakejobs
 echo "Run snakemake"
 
 
-CLUSTER_OPTS="sbatch --gres {cluster.gres} --qos=cv19 --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name={params.rname} -e snakejobs/slurm-%j_{params.rname}.out -o snakejobs/slurm-%j_{params.rname}.out --chdir=$batchdir"
+CLUSTER_OPTS="sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name={params.rname} -e snakejobs/slurm-%j_{params.rname}.out -o snakejobs/slurm-%j_{params.rname}.out --chdir=$batchdir"
 
 if [ "$2" == "align" ]
 then
@@ -115,5 +115,5 @@ fi
 
 if [ "$3" == "process" ]
 then
-    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 500 --cluster "$CLUSTER_OPTS" --cluster-config NCBR_wgs_pipeline/ncbr_wgs_cluster.json --keep-going --snakefile ${DIR}/"$RUNFILE" > wgs_batch_processing.log 2>&1 &
+    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 500 --cluster "$CLUSTER_OPTS" --cluster-config NCBR_wgs_pipeline/ncbr_wgs_cluster.json --keep-going --snakefile ${DIR}/"$RUNFILE" > wgs_batch_processing.log 2>&1
 fi

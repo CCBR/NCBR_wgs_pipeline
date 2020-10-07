@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #################################
 #
 # snakefile for converting CIDR Sequencing data deliveries to non-PII ready for GRIS upload, running QC, and joint genotyping
@@ -10,6 +12,8 @@
 # Frederick National Lab
 # December 11, 2019
 #
+# Eric Karlins
+# October 2020
 #################################
 
 ## 
@@ -23,6 +27,7 @@ import re
 import sys
 from glob import glob
 import datetime
+import pysam
 
 ##
 ## Set initial global variables
@@ -44,6 +49,71 @@ print(dict_CIDR)
 configfile:"NCBR_wgs_pipeline/ncbr_wgs_references_hg38.json"
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
 
+def get_rg_from_bam(bam):
+    '''
+    (str) -> [dict]
+    returns a list of readgroup dicts for the given bam
+    '''
+    
+    samfile = pysam.AlignmentFile(bam, "rb")
+    if samfile.header.get('RG'):
+        read_groups = samfile.header['RG']
+    else:
+        read_groups = [{}]
+    samfile.close()
+    return read_groups
+
+d = { 'sample':[],
+  'bam': [],
+  'unit':[],
+  'ID': [],
+  'LB':[],
+  'platform':[],
+  'PU': []}
+
+for index, row in df.iterrows():
+    sample = row['IDs']
+    bam = join(dir_rawdata, dict_CIDR[sample] + seqfile)
+    readgroups = get_rg_from_bam(bam)
+    for i in range(len(readgroups)):
+        d['sample'].append(sample)
+        d['bam'].append(bam)
+        d['unit'].append(str(i+1))
+        if not readgroups[i].get('ID'):
+            d['ID'].append(sample)
+        else:
+            d['ID'].append(readgroups[i]['ID'])
+        if not readgroups[i].get('LB'):
+            d['LB'].append(sample)
+        else:
+            d['LB'].append(readgroups[i]['LB'])
+        if not readgroups[i].get('PU'):
+            d['PU'].append(sample)
+        else:
+            d['PU'].append(readgroups[i]['PU'])
+        d['platform'].append('ILLUMINA')
+units = pd.DataFrame(data=d).set_index(["sample", "unit"], drop=False)
+units.index = units.index.set_levels([i.astype(str) for i in units.index.levels])
+
+
+def get_start_bam(wildcards):
+    """get input bam given sample-units"""
+    return units.loc[(wildcards.newID, wildcards.unit), ["bam"]].dropna().bam
+
+
+
+def get_sample_bams(wildcards):
+    """Get all aligned reads of given sample."""
+    return expand("BAM/{newID}_{unit}.bam",
+                  newID=wildcards.newID,
+                  unit=units.loc[wildcards.newID].unit)
+
+
+def get_rg_param(wildcards):
+    """get the param to use for samtools view, namely the RG string"""
+    rg = units.loc[(wildcards.newID, wildcards.unit), ["ID"]].dropna().ID
+    return rg
+
 ##
 ## Set rule all
 ##
@@ -52,26 +122,42 @@ rule all:
     input:
         recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
 
+
+rule subset_bam_rg:
+    input:
+        get_start_bam
+    output:
+        "rg_bam/{newID}_{unit}.bam"
+    params:
+        rg = get_rg_param,
+        rname = "subset_bam_rg"
+    shell:
+        """
+        module load samtools/1.11
+        samtools view -hbr {params.rg} -o {output} {input}
+        """
+
+
 rule bam2fastq:
-    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + seqfile)],
-    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
-            r2=temp("fastqs/{newID}.R2.fastq.gz"),
-            orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
+    input: bam = 'rg_bam/{newID}_{unit}.bam'
+    output: r1=temp("fastqs/{newID}_{unit}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}_{unit}.R2.fastq.gz"),
+            orphans=temp("fastqs/{newID}_{unit}.unpaired.fastq.gz"),
     params: rname="bam2fastq"
     shell: """
            module load GATK/4.1.8.1
            mkdir -p fastqs
-           gatk SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} --TMP_DIR /lscratch/$SLURM_JOBID -R /data/GRIS_NCBR/resources/human_g1k_v37_decoy.fasta
+           gatk --java-options '-Xmx48g' SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} --TMP_DIR /lscratch/$SLURM_JOBID -R /data/GRIS_NCBR/resources/human_g1k_v37_decoy.fasta
            """
 
 rule trimmomatic:
-    input:  r1="fastqs/{newID}.R1.fastq.gz",
-            r2="fastqs/{newID}.R2.fastq.gz",
-    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
-            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
-            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
-            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
-            err="fastqs/{newID}_run_trimmomatic.err"
+    input:  r1="fastqs/{newID}_{unit}.R1.fastq.gz",
+            r2="fastqs/{newID}_{unit}.R2.fastq.gz",
+    output: one=temp("fastqs/{newID}_{unit}.R1.trimmed.fastq.gz"),
+            two=temp("fastqs/{newID}_{unit}.R1.trimmed.unpair.fastq.gz"),
+            three=temp("fastqs/{newID}_{unit}.R2.trimmed.fastq.gz"),
+            four=temp("fastqs/{newID}_{unit}.R2.trimmed.unpair.fastq.gz"),
+            err="fastqs/{newID}_{unit}_run_trimmomatic.err"
     params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
     shell:  """
             module load trimmomatic/0.39
@@ -79,8 +165,8 @@ rule trimmomatic:
             """
 
 rule bwa_mem:
-    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
-    output: temp("BAM/{newID}.bam")
+    input:  "fastqs/{newID}_{unit}.R1.trimmed.fastq.gz","fastqs/{newID}_{unit}.R2.trimmed.fastq.gz"
+    output: temp("BAM/{newID}_{unit}.bam")
     params: genome=config['references']['GENOME'],rname="pl:bwamem",sample = "{newID}"
     threads: 24
     shell:  """
@@ -89,6 +175,22 @@ rule bwa_mem:
             module load bwa/0.7.17
             bwa mem -M -R \'@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina\\tLB:{params.sample}\\tPU:{params.sample}\\tCN:usuhs\\tDS:wgs\' -t {threads} {params.genome} {input} | /usr/local/apps/samblaster/0.1.25/bin/samblaster -M | samtools sort -@12 -m 4G - -o {output}
             """
+
+
+rule merge_unit_bams:
+    input:
+        get_sample_bams
+    output:
+        "BAM/{newID}.bam"
+    run:
+        bam_str = ''
+        for bam in input:
+            bam_str += 'I=' + bam + ' '
+        cmd_str = 'module load picard/2.22.2\n'
+        cmd_str += 'java -Xmx120g -jar $PICARDJARPATH/picard.jar MergeSamFiles '
+        cmd_str += bam_str
+        shell(cmd_str + 'O={output}')
+
 
 rule index:
       input:  bam="BAM/{newID}.bam"
@@ -102,7 +204,7 @@ rule index:
 rule recal_1:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_1_recal_data.grp")
+      output: re=temp("BAM/{newID}.1_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal1"
       shell:  """
               module load GATK/4.1.6.0
@@ -112,7 +214,7 @@ rule recal_1:
 rule recal_2:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_2_recal_data.grp")
+      output: re=temp("BAM/{newID}.2_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal2"
       shell:  """
               module load GATK/4.1.6.0
@@ -122,7 +224,7 @@ rule recal_2:
 rule recal_3:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_3_recal_data.grp")
+      output: re=temp("BAM/{newID}.3_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal3"
       shell:  """
               module load GATK/4.1.6.0
@@ -132,7 +234,7 @@ rule recal_3:
 rule recal_4:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_4_recal_data.grp")
+      output: re=temp("BAM/{newID}.4_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal4"
       shell:  """
               module load GATK/4.1.6.0
@@ -142,7 +244,7 @@ rule recal_4:
 rule recal_5:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_5_recal_data.grp")
+      output: re=temp("BAM/{newID}.5_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal5"
       shell:  """
               module load GATK/4.1.6.0
@@ -150,20 +252,20 @@ rule recal_5:
               """
 
 rule gather_bqsr:
-    input: "BAM/{newID}_1_recal_data.grp","BAM/{newID}_2_recal_data.grp","BAM/{newID}_3_recal_data.grp","BAM/{newID}_4_recal_data.grp","BAM/{newID}_5_recal_data.grp"
-    output: recal = "BAM/{newID}_recal_data.grp",
+    input: "BAM/{newID}.1_recal_data.grp","BAM/{newID}.2_recal_data.grp","BAM/{newID}.3_recal_data.grp","BAM/{newID}.4_recal_data.grp","BAM/{newID}.5_recal_data.grp"
+    output: recal = "BAM/{newID}.recal_data.grp",
             list = temp("BAM/{newID}.recals.list")
     params: sample="{newID}",rname="gather_bqsr"
     shell: """
            module load GATK/4.1.6.0
-           ls BAM/{params.sample}_*_recal_data.grp > BAM/{params.sample}.recals.list
+           ls BAM/{params.sample}.*_recal_data.grp > BAM/{params.sample}.recals.list
            gatk --java-options '-Xmx24g' -I BAM/{params.sample}.recals.list --use-jdk-inflater --use-jdk-deflater -O {output.recal}
            """
 
 rule apply_recal:
       input:  bam="BAM/{newID}.bam",
               bai="BAM/{newID}.bai",
-              re="BAM/{newID}_recal_data.grp",
+              re="BAM/{newID}.recal_data.grp",
       output: bam="BAM/{newID}.final.bam",
       params: genome=config['references']['GENOME'],rname="apply_recal"
       shell:  """
