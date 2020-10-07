@@ -109,6 +109,11 @@ def get_sample_bams(wildcards):
                   unit=units.loc[wildcards.newID].unit)
 
 
+def get_rg_param(wildcards):
+    """get the param to use for samtools view, namely the RG string"""
+    rg = units.loc[(wildcards.newID, wildcards.unit), ["ID"]].dropna().ID
+    return rg
+
 ##
 ## Set rule all
 ##
@@ -117,8 +122,23 @@ rule all:
     input:
         recalbam = expand("BAM/{newID}.final.bam",newID=list(dict_CIDR.keys())),
 
+
+rule subset_bam_rg:
+    input:
+        get_start_bam
+    output:
+        'rg_bam/{newID}_{unit}.bam'
+    params:
+        rg = get_rg_param 
+    shell:
+        """
+        module load samtools/1.11
+        samtools view -hbr {params.rg} -o {output} {input}
+        """
+
+
 rule bam2fastq:
-    input: bam = get_start_bam
+    input: bam = 'rg_bam/{newID}_{unit}.bam'
     output: r1=temp("fastqs/{newID}_{unit}.R1.fastq.gz"),
             r2=temp("fastqs/{newID}_{unit}.R2.fastq.gz"),
             orphans=temp("fastqs/{newID}_{unit}.unpaired.fastq.gz"),
