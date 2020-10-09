@@ -182,6 +182,8 @@ rule merge_unit_bams:
         get_sample_bams
     output:
         "BAM/{newID}.bam"
+    params:
+        rname = "merge_unit_bams"
     run:
         bam_str = ''
         for bam in input:
